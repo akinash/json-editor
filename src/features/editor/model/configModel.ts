@@ -80,9 +80,11 @@ export function setEntryCode(entry: ConfigEntry, nextCode: string): ConfigEntry 
 }
 
 export function detectRuleType(options: Options): DateRuleType {
-  if (options.start || options.end) return "range";
-  if (options.startDayOfYear || options.endDayOfYear) return "day_of_year";
-  if (options.xDayOfWeek || options.yWeek || options.zMonth) return "weekday_in_month";
+  if ("start" in options || "end" in options) return "range";
+  if ("startDayOfYear" in options || "endDayOfYear" in options) return "day_of_year";
+  if ("xDayOfWeek" in options || "yWeek" in options || "zMonth" in options) {
+    return "weekday_in_month";
+  }
   return "default";
 }
 

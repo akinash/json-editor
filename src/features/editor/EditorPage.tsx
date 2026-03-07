@@ -5,16 +5,13 @@ import {
   Button,
   Container,
   Divider,
-  Menu,
-  MenuItem,
   Paper,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
-import ComputerIcon from "@mui/icons-material/Computer";
+import LightModeIcon from "@mui/icons-material/LightMode";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
 import AddIcon from "@mui/icons-material/Add";
@@ -35,6 +32,7 @@ import { useThemeModeContext } from "@/app/ThemeModeProvider";
 import { AppCard } from "@/shared/ui/AppCard";
 import { AppSectionTitle } from "@/shared/ui/AppSectionTitle";
 import { ObjectCard } from "./components/ObjectCard";
+import { JsonCodeEditor } from "./components/JsonCodeEditor";
 import { ConfigEntry } from "@/shared/types/config";
 import {
   createEmptyEntry,
@@ -52,10 +50,22 @@ export function EditorPage() {
   const [entries, setEntries] = React.useState<ConfigEntry[]>([]);
   const [expandedId, setExpandedId] = React.useState<string | false>(false);
 
-  const { mode, setMode, label } = useThemeModeContext();
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const { resolvedMode, setMode } = useThemeModeContext();
 
   const issues = React.useMemo(() => validateEntries(entries), [entries]);
+  const duplicateCodeSet = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    entries.forEach((entry) => {
+      const key = entry.key.trim();
+      if (!key) return;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    const duplicates = new Set<string>();
+    counts.forEach((count, key) => {
+      if (count > 1) duplicates.add(key);
+    });
+    return duplicates;
+  }, [entries]);
   const statusByKey = React.useMemo(() => {
     const map = new Map<string, "ok" | "warn" | "error">();
     entries.forEach((entry) => map.set(entry.key, "ok"));
@@ -73,18 +83,22 @@ export function EditorPage() {
   }, [entries, issues]);
 
   React.useEffect(() => {
+    if (window.location.protocol === "file:") {
+      setUrlError(
+        "Режим file://: автозагрузка по URL отключена из-за CORS. Нажмите «Загрузить» только на http/https.",
+      );
+      return;
+    }
     void handleLoadFromUrl();
   }, []);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-  const sortableIds = React.useMemo(
-    () => entries.map((entry, index) => `${index}:${entry.key}`),
-    [entries],
-  );
+  const sortableIds = React.useMemo(() => entries.map((_, index) => `row-${index}`), [entries]);
 
   const syncEntriesToJson = React.useCallback((nextEntries: ConfigEntry[]) => {
     setEntries(nextEntries);
     setJsonText(serializeConfig(nextEntries));
+    setJsonError("");
   }, []);
 
   async function handleLoadFromUrl() {
@@ -143,11 +157,28 @@ export function EditorPage() {
     const downloadUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = downloadUrl;
-    a.download = "background-config.json";
+    a.download = getDownloadFileName(url);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(downloadUrl);
+  }
+
+  function getDownloadFileName(sourceUrl: string): string {
+    const fallback = "background-config.json";
+    const raw = sourceUrl.trim();
+    if (!raw) return fallback;
+    try {
+      const parsed = new URL(raw);
+      const pathname = parsed.pathname || "";
+      const lastSegment = pathname.split("/").filter(Boolean).pop() || "";
+      if (!lastSegment) return fallback;
+      return lastSegment.toLowerCase().endsWith(".json")
+        ? lastSegment
+        : `${lastSegment}.json`;
+    } catch {
+      return fallback;
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -188,43 +219,17 @@ export function EditorPage() {
 
         <Button
           variant="outlined"
-          startIcon={mode === "dark" ? <DarkModeIcon /> : mode === "light" ? <LightModeIcon /> : <ComputerIcon />}
-          onClick={(e) => setAnchorEl(e.currentTarget)}
+          startIcon={resolvedMode === "dark" ? <DarkModeIcon /> : <LightModeIcon />}
+          onClick={() => setMode(resolvedMode === "dark" ? "light" : "dark")}
         >
-          {label}
+          {resolvedMode === "dark" ? "Тёмная" : "Светлая"}
         </Button>
-        <Menu open={Boolean(anchorEl)} anchorEl={anchorEl} onClose={() => setAnchorEl(null)}>
-          <MenuItem
-            onClick={() => {
-              setMode("system");
-              setAnchorEl(null);
-            }}
-          >
-            Системная
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              setMode("light");
-              setAnchorEl(null);
-            }}
-          >
-            Светлая
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              setMode("dark");
-              setAnchorEl(null);
-            }}
-          >
-            Тёмная
-          </MenuItem>
-        </Menu>
       </Paper>
 
       <Stack spacing={2}>
         <AppCard>
           <AppSectionTitle title="1. Загрузка JSON по URL" />
-          <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} mt={1.5} alignItems="flex-end">
+          <Stack direction={{ xs: "column", md: "row" }} spacing={1.25} mt={1.5} alignItems="stretch">
             <TextField
               label="Ссылка на JSON"
               value={url}
@@ -232,7 +237,7 @@ export function EditorPage() {
               fullWidth
               placeholder="https://..."
             />
-            <Button variant="contained" onClick={handleLoadFromUrl}>
+            <Button variant="contained" onClick={handleLoadFromUrl} sx={{ minWidth: 130, minHeight: 56 }}>
               Загрузить
             </Button>
           </Stack>
@@ -269,10 +274,11 @@ export function EditorPage() {
                     entry={entry}
                     expanded={expandedId === sortableIds[index]}
                     status={statusByKey.get(entry.key) ?? "ok"}
+                    duplicateCodeSet={duplicateCodeSet}
                     onExpanded={(open) => setExpandedId(open ? sortableIds[index] : false)}
                     onChange={(next) => {
                       syncEntriesToJson(
-                        entries.map((item) => (item.key === entry.key ? next : item)),
+                        entries.map((item, itemIndex) => (itemIndex === index ? next : item)),
                       );
                     }}
                     onClone={() => {
@@ -328,20 +334,10 @@ export function EditorPage() {
             </Stack>
           </Stack>
 
-          <TextField
-            multiline
-            minRows={14}
-            maxRows={24}
+          <JsonCodeEditor
             value={jsonText}
-            onChange={(e) => handleJsonChange(e.target.value)}
-            fullWidth
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                borderRadius: 2,
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                fontSize: 13,
-              },
-            }}
+            onChange={handleJsonChange}
+            isDark={resolvedMode === "dark"}
           />
           {jsonError ? (
             <Typography color="error" variant="caption" sx={{ mt: 1, display: "block" }}>

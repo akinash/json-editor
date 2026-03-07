@@ -1,3 +1,5 @@
-IMG_6511.JPG
 .DS_Store
 ТЗ/*
+node_modules/*
+dist/*
+.vite/*
