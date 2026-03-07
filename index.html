@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Редактор JSON-конфига</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./favicon.ico" sizes="any" />
+    <link rel="shortcut icon" href="./favicon.ico" />
+    <link rel="stylesheet" href="styles.css" />
+    <!-- Ace editor for JSON with syntax highlighting, folding, etc.
+         Убрали integrity, чтобы не было ошибок Failed integrity metadata check
+         при локальном открытии файла. -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.3/ace.js"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.3/ext-language_tools.min.js"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+  </head>
+  <body>
+    <div class="app-root">
+      <header class="app-header">
+        <div class="app-header-main app-header-row">
+          <div class="app-brand">
+            <img
+              class="app-brand-logo"
+              src="./apple-touch-icon.png"
+              alt="Логотип редактора"
+              width="44"
+              height="44"
+            />
+            <div>
+            <h1 class="app-title">Редактор JSON-конфига</h1>
+            <p class="app-subtitle">
+              Редактирование конфига заставок веб-версии
+            </p>
+            </div>
+          </div>
+          <button id="theme-toggle-btn" class="btn btn-outline theme-toggle-btn" type="button" aria-live="polite">
+            <span class="theme-toggle-btn-icon" aria-hidden="true">☀️</span>
+            <span class="theme-toggle-btn-text">Светлая</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="app-layout">
+        <!-- 1. URL loader -->
+        <section class="card card-url-loader">
+          <h2 class="card-title">1. Загрузка JSON по URL</h2>
+          <div class="url-row">
+            <label class="field">
+              <span class="field-label">Ссылка на JSON</span>
+              <input
+                id="json-url-input"
+                class="field-input"
+                type="text"
+                placeholder="https://..."
+              />
+            </label>
+            <button id="load-json-btn" class="btn btn-primary">
+              Загрузить
+            </button>
+          </div>
+          <p id="url-error" class="field-error" aria-live="polite"></p>
+        </section>
+
+        <!-- 2. Visual editor -->
+        <section class="card card-visual-editor">
+          <div class="card-header-row">
+            <h2 class="card-title">2. Визуальный редактор объектов</h2>
+          </div>
+          <p class="card-hint">
+            Каждый объект верхнего уровня отображается в карточке.
+            Изменения в форме и JSON синхронизируются автоматически.
+          </p>
+          <div id="rules-validation" class="rules-validation" hidden></div>
+          <div id="objects-empty-state" class="empty-state" hidden>
+            JSON пустой. Нажмите <strong>Новый объект</strong>, чтобы создать первый объект.
+          </div>
+          <div id="objects-list" class="objects-list"></div>
+          <button id="add-object-btn" class="btn btn-primary btn-add-object">
+            + Новый объект
+          </button>
+        </section>
+
+        <!-- 3. JSON editor -->
+        <section class="card card-json-editor">
+          <div class="card-header-row">
+            <h2 class="card-title">3. JSON‑редактор</h2>
+            <div class="card-header-actions">
+              <button id="format-json-btn" class="btn btn-secondary">
+                Форматировать
+              </button>
+              <button id="download-json-btn" class="btn btn-outline">
+                Скачать JSON
+              </button>
+            </div>
+          </div>
+
+          <div id="json-editor" class="json-editor" aria-label="Редактор JSON"></div>
+          <p id="json-error" class="field-error" aria-live="polite"></p>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
