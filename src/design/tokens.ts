@@ -1,0 +1,61 @@
+export const tokens = {
+  spacing: {
+    xxs: 4,
+    xs: 8,
+    sm: 12,
+    md: 16,
+    lg: 24,
+    xl: 32,
+  },
+  radius: {
+    sm: 8,
+    md: 12,
+    lg: 16,
+    pill: 999,
+  },
+  typography: {
+    fontFamily:
+      '"Inter", "SF Pro Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+    h1: { fontSize: 28, lineHeight: 1.2, fontWeight: 700 },
+    h2: { fontSize: 20, lineHeight: 1.3, fontWeight: 700 },
+    h3: { fontSize: 16, lineHeight: 1.35, fontWeight: 600 },
+    body: { fontSize: 14, lineHeight: 1.45, fontWeight: 400 },
+    caption: { fontSize: 12, lineHeight: 1.4, fontWeight: 500 },
+  },
+  light: {
+    bgCanvas: "#edf3fa",
+    bgCanvasTop: "#dde8f8",
+    bgSurface: "#ffffff",
+    bgSurfaceAlt: "#f6f9fd",
+    textPrimary: "#0b1b30",
+    textSecondary: "#4f617b",
+    border: "#ccd8ea",
+    borderStrong: "#9fb3d1",
+    primary: "#1f6feb",
+    primaryHover: "#175fcf",
+    warning: "#a16b00",
+    error: "#d92d20",
+    success: "#157347",
+  },
+  dark: {
+    bgCanvas: "#020817",
+    bgCanvasTop: "#0f172a",
+    bgSurface: "#0b1220",
+    bgSurfaceAlt: "#0f172a",
+    textPrimary: "#e2e8f0",
+    textSecondary: "#98a7bd",
+    border: "#263246",
+    borderStrong: "#44546e",
+    primary: "#60a5fa",
+    primaryHover: "#7cb6fb",
+    warning: "#f7c35f",
+    error: "#f87171",
+    success: "#34d399",
+  },
+  shadows: {
+    soft: "0 12px 30px rgba(15, 23, 42, 0.10)",
+    subtle: "0 4px 14px rgba(15, 23, 42, 0.08)",
+  },
+} as const;
+
+export type ThemeMode = "light" | "dark" | "system";
