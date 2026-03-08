@@ -221,6 +221,32 @@ export function validateEntries(entries: ConfigEntry[]): ValidationIssue[] {
       issues.push({ level: "error", message: `Дубликат кода \"${entry.key}\".`, keys: [entry.key] });
     }
     codeSet.add(entry.key);
+
+    const desktopMissing = getMissingGradientParts(entry.data.options);
+    const mobileMissing = getMissingGradientParts(entry.data["options-portrait"]);
+    if (desktopMissing.length || mobileMissing.length) {
+      const sections: string[] = [];
+      if (desktopMissing.length) {
+        sections.push(`Desktop: ${desktopMissing.join(", ")}`);
+      }
+      if (mobileMissing.length) {
+        sections.push(`Mobile: ${mobileMissing.join(", ")}`);
+      }
+      issues.push({
+        level: "error",
+        message: `Код "${entry.key}" не заполнен градиент (${sections.join("; ")}).`,
+        keys: [entry.key],
+      });
+    }
+
+    const contentErrors = collectEntryContentErrors(entry);
+    if (contentErrors.length) {
+      issues.push({
+        level: "error",
+        message: `Код "${entry.key}": ${contentErrors.join("; ")}.`,
+        keys: [entry.key],
+      });
+    }
   });
 
   const defaults = entries.filter((entry) => detectRuleType(entry.data.options) === "default");
@@ -259,6 +285,139 @@ export function validateEntries(entries: ConfigEntry[]): ValidationIssue[] {
   }
 
   return issues;
+}
+
+export function getMissingGradientParts(options: Options): string[] {
+  if (!isTimeOfDayEnabled(options)) {
+    const gradient = typeof options.gradient === "string" ? options.gradient.trim() : "";
+    return gradient ? [] : ["общий"];
+  }
+
+  const gradientObj =
+    options.gradient && typeof options.gradient === "object" && !Array.isArray(options.gradient)
+      ? options.gradient
+      : {};
+  const suffixes = Array.from(new Set(TIME_KEYS.map((key) => options[key]).filter(Boolean) as TimeKey[]));
+  if (!suffixes.length) {
+    return ["общий"];
+  }
+  return suffixes.filter((suffix) => !`${gradientObj[suffix] ?? ""}`.trim());
+}
+
+function collectEntryContentErrors(entry: ConfigEntry): string[] {
+  const errors: string[] = [];
+  const desktopErrors = collectOptionsContentErrors(entry.data.options);
+  const mobileErrors = collectOptionsContentErrors(entry.data["options-portrait"]);
+  if (desktopErrors.length) {
+    errors.push(`Desktop: ${desktopErrors.join(", ")}`);
+  }
+  if (mobileErrors.length) {
+    errors.push(`Mobile: ${mobileErrors.join(", ")}`);
+  }
+  return errors;
+}
+
+function collectOptionsContentErrors(options: Options): string[] {
+  const errors: string[] = [];
+  const type = detectRuleType(options);
+
+  if (!`${options.aspectRatio ?? ""}`.trim()) {
+    errors.push("пустое поле aspectRatio");
+  }
+
+  if (type === "range") {
+    const start = `${options.start ?? ""}`.trim();
+    const end = `${options.end ?? ""}`.trim();
+    if (!start || !end) {
+      errors.push("для диапазона дат нужно заполнить start и end");
+    } else {
+      if (!parseDayMonth(start)) errors.push("некорректный формат start (ожидается ДД.ММ или ДД.ММ.ГГГГ/****)");
+      if (!parseDayMonth(end)) errors.push("некорректный формат end (ожидается ДД.ММ или ДД.ММ.ГГГГ/****)");
+    }
+  }
+
+  if (type === "day_of_year") {
+    const start = `${options.startDayOfYear ?? ""}`.trim();
+    const end = `${options.endDayOfYear ?? ""}`.trim();
+    if (!start || !end) {
+      errors.push("для day_of_year нужно заполнить startDayOfYear и endDayOfYear");
+    } else {
+      const startNum = Number(start);
+      const endNum = Number(end);
+      if (!Number.isInteger(startNum) || startNum < 1 || startNum > 365) {
+        errors.push("startDayOfYear должен быть целым числом 1..365");
+      }
+      if (!Number.isInteger(endNum) || endNum < 1 || endNum > 365) {
+        errors.push("endDayOfYear должен быть целым числом 1..365");
+      }
+    }
+  }
+
+  if (type === "weekday_in_month") {
+    const x = `${options.xDayOfWeek ?? ""}`.trim();
+    const y = `${options.yWeek ?? ""}`.trim();
+    const z = `${options.zMonth ?? ""}`.trim();
+    if (!x || !y || !z) {
+      errors.push("для weekday_in_month нужно заполнить xDayOfWeek, yWeek и zMonth");
+    } else {
+      const xNum = Number(x);
+      const yNum = Number(y);
+      const zNum = Number(z);
+      if (!Number.isInteger(xNum) || xNum < 1 || xNum > 7) {
+        errors.push("xDayOfWeek должен быть целым числом 1..7");
+      }
+      if (!Number.isInteger(yNum) || yNum < -5 || yNum > 5 || yNum === 0) {
+        errors.push("yWeek должен быть целым числом в диапазоне -5..-1 или 1..5");
+      }
+      if (!Number.isInteger(zNum) || zNum < 1 || zNum > 12) {
+        errors.push("zMonth должен быть целым числом 1..12");
+      }
+    }
+  }
+
+  if (!isTimeOfDayEnabled(options)) {
+    const gradient = typeof options.gradient === "string" ? options.gradient.trim() : "";
+    if (gradient && !isValidGradientCss(gradient)) {
+      errors.push("некорректный формат gradient (ожидается linear-gradient(...))");
+    }
+    return errors;
+  }
+
+  const gradientObj =
+    options.gradient && typeof options.gradient === "object" && !Array.isArray(options.gradient)
+      ? options.gradient
+      : {};
+  TIME_KEYS.forEach((key) => {
+    const mapped = options[key];
+    if (!mapped) return;
+    if (!TIME_KEYS.includes(mapped)) {
+      errors.push(`${key} содержит недопустимое значение "${mapped}"`);
+    }
+  });
+  const usedSuffixes = Array.from(new Set(TIME_KEYS.map((key) => options[key]).filter(Boolean) as TimeKey[]));
+  usedSuffixes.forEach((suffix) => {
+    const gradient = `${gradientObj[suffix] ?? ""}`.trim();
+    if (gradient && !isValidGradientCss(gradient)) {
+      errors.push(`некорректный gradient для "${suffix}" (ожидается linear-gradient(...))`);
+    }
+  });
+
+  return errors;
+}
+
+function isValidGradientCss(value: string): boolean {
+  const raw = value.trim();
+  const match = raw.match(/^linear-gradient\(([\s\S]+?)\)\s*(?:,\s*(rgb\([^)]+\)|#[0-9a-fA-F]{6}))?\s*$/i);
+  if (!match) return false;
+  const gradientPart = `linear-gradient(${match[1]})`;
+  const angle = gradientPart.match(/linear-gradient\(([-\d.]+)deg/i);
+  if (!angle || !Number.isFinite(Number(angle[1]))) return false;
+  const stops = [...gradientPart.matchAll(/(rgb\([^\)]+\)|#[0-9a-fA-F]{6})\s+([\d.]+)%/g)];
+  if (stops.length < 2) return false;
+  return stops.every((s) => {
+    const pos = Number(s[2]);
+    return Number.isFinite(pos) && pos >= 0;
+  });
 }
 
 export function createEmptyEntry(existing: Set<string>): ConfigEntry {

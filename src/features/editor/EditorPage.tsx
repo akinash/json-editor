@@ -94,6 +94,7 @@ export function EditorPage() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const sortableIds = React.useMemo(() => entries.map((_, index) => `row-${index}`), [entries]);
+  const assetsBaseUrl = React.useMemo(() => getAssetsBaseUrl(url), [url]);
 
   const syncEntriesToJson = React.useCallback((nextEntries: ConfigEntry[]) => {
     setEntries(nextEntries);
@@ -275,6 +276,7 @@ export function EditorPage() {
                     expanded={expandedId === sortableIds[index]}
                     status={statusByKey.get(entry.key) ?? "ok"}
                     duplicateCodeSet={duplicateCodeSet}
+                    assetsBaseUrl={assetsBaseUrl}
                     onExpanded={(open) => setExpandedId(open ? sortableIds[index] : false)}
                     onChange={(next) => {
                       syncEntriesToJson(
@@ -314,7 +316,9 @@ export function EditorPage() {
             startIcon={<AddIcon />}
             onClick={() => {
               const existing = new Set(entries.map((entry) => entry.key));
-              syncEntriesToJson([...entries, createEmptyEntry(existing)]);
+              const nextEntries = [...entries, createEmptyEntry(existing)];
+              syncEntriesToJson(nextEntries);
+              setExpandedId(`row-${nextEntries.length - 1}`);
             }}
           >
             Новый объект
@@ -348,4 +352,17 @@ export function EditorPage() {
       </Stack>
     </Container>
   );
+}
+
+function getAssetsBaseUrl(sourceUrl: string): string {
+  const raw = sourceUrl.trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    const pathname = parsed.pathname || "/";
+    const basePath = pathname.endsWith("/") ? pathname : pathname.replace(/\/[^/]*$/, "/");
+    return `${parsed.origin}${basePath}`;
+  } catch {
+    return "";
+  }
 }

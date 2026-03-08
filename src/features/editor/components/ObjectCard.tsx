@@ -1,4 +1,4 @@
-import { MouseEvent, useEffect, useRef, useState } from "react";
+import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -27,6 +27,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { CSS } from "@dnd-kit/utilities";
 import { useSortable } from "@dnd-kit/sortable";
 import { ConfigEntry, DateRuleType, Options, TimeKey } from "@/shared/types/config";
+import { GradientGeneratorField } from "./GradientGeneratorDialog";
 import {
   applyRuleType,
   buildFileNames,
@@ -34,6 +35,7 @@ import {
   disableTimeOfDay,
   enableTimeOfDay,
   getRuleSummary,
+  getMissingGradientParts,
   isTimeOfDayEnabled,
   normalizeCode,
   normalizeRangeDateForJson,
@@ -71,6 +73,28 @@ const MONTH_NAMES = [
   "Декабрь",
 ];
 const WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
+const fileExistsCache = new Map<string, boolean>();
+const DESKTOP_RATIO = 5774 / 2436;
+const MOBILE_RATIO = 1625 / 2436;
+const TIME_LABEL_LOWER: Record<TimeKey, string> = {
+  morning: "утро",
+  day: "день",
+  evening: "вечер",
+  night: "ночь",
+};
+type OptionsFieldErrors = {
+  aspectRatio: boolean;
+  start: boolean;
+  end: boolean;
+  startDayOfYear: boolean;
+  endDayOfYear: boolean;
+  xDayOfWeek: boolean;
+  yWeek: boolean;
+  zMonth: boolean;
+  gradientGeneralInvalid: boolean;
+  gradientInvalidSuffixes: Set<TimeKey>;
+  invalidTimeKeys: Set<TimeKey>;
+};
 
 export function ObjectCard({
   sortableId,
@@ -78,6 +102,7 @@ export function ObjectCard({
   expanded,
   status,
   duplicateCodeSet,
+  assetsBaseUrl,
   onExpanded,
   onChange,
   onClone,
@@ -88,6 +113,7 @@ export function ObjectCard({
   expanded: boolean;
   status: "ok" | "warn" | "error";
   duplicateCodeSet: Set<string>;
+  assetsBaseUrl: string;
   onExpanded: (open: boolean) => void;
   onChange: (next: ConfigEntry) => void;
   onClone: () => void;
@@ -98,6 +124,7 @@ export function ObjectCard({
 
   const [startUi, setStartUi] = useState(uiDateFromJsonDate(entry.data.options.start));
   const [endUi, setEndUi] = useState(uiDateFromJsonDate(entry.data.options.end));
+  const [fileAvailability, setFileAvailability] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setStartUi(uiDateFromJsonDate(entry.data.options.start));
@@ -113,12 +140,63 @@ export function ObjectCard({
   const ruleType = detectRuleType(entry.data.options);
   const timeDesktop = isTimeOfDayEnabled(entry.data.options);
   const timeMobile = isTimeOfDayEnabled(entry.data["options-portrait"]);
+  const desktopFieldErrors = getOptionsFieldErrors(entry.data.options);
+  const mobileFieldErrors = getOptionsFieldErrors(entry.data["options-portrait"]);
   const codeError =
     !entry.key.trim()
       ? "Код заставки обязателен."
       : duplicateCodeSet.has(entry.key)
       ? `Код "${entry.key}" уже используется в другом объекте.`
       : "";
+  const desktopFiles = useMemo(
+    () => buildFileNames(entry.data.value, entry.data.options),
+    [entry.data.value, entry.data.options],
+  );
+  const mobileFiles = useMemo(
+    () => buildFileNames(entry.data["value-portrait"], entry.data["options-portrait"]),
+    [entry.data["value-portrait"], entry.data["options-portrait"]],
+  );
+  const allFilesKey = useMemo(() => [...new Set([...desktopFiles, ...mobileFiles])].sort().join("|"), [
+    desktopFiles,
+    mobileFiles,
+  ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const allFiles = allFilesKey ? allFilesKey.split("|").filter(Boolean) : [];
+    if (!assetsBaseUrl || !allFiles.length) {
+      setFileAvailability((prev) => (Object.keys(prev).length ? {} : prev));
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    (async () => {
+      const pairs = await Promise.all(
+        allFiles.map(async (fileName) => {
+          const fullUrl = buildFileUrl(assetsBaseUrl, fileName);
+          const exists = await checkRemoteImageExists(fullUrl);
+          return [fileName, exists] as const;
+        }),
+      );
+      if (cancelled) return;
+      const next = Object.fromEntries(pairs);
+      setFileAvailability((prev) => {
+        const prevKeys = Object.keys(prev);
+        const nextKeys = Object.keys(next);
+        if (prevKeys.length !== nextKeys.length) return next;
+        for (let i = 0; i < nextKeys.length; i += 1) {
+          const key = nextKeys[i];
+          if (prev[key] !== next[key]) return next;
+        }
+        return prev;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assetsBaseUrl, allFilesKey]);
 
   const setOptions = (patch: Partial<Options>, target: "desktop" | "mobile") => {
     const key = target === "desktop" ? "options" : "options-portrait";
@@ -206,7 +284,7 @@ export function ObjectCard({
                 fullWidth
                 inputProps={{ maxLength: 25 }}
                 error={Boolean(codeError)}
-                helperText={codeError || "Латиница, цифры и _. До 25 символов."}
+                helperText={codeError || undefined}
               />
             </Box>
             <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 8" } }}>
@@ -274,6 +352,8 @@ export function ObjectCard({
                       setStartUi(nextStart);
                       setEndUi(nextEnd);
                     }}
+                    startError={desktopFieldErrors.start}
+                    endError={desktopFieldErrors.end}
                   />
                 </Box>
               </Box>
@@ -287,6 +367,8 @@ export function ObjectCard({
                       label="День года: с"
                       value={entry.data.options.startDayOfYear ?? ""}
                       onChange={(e) => setOptions({ startDayOfYear: e.target.value }, "desktop")}
+                      error={desktopFieldErrors.startDayOfYear}
+                      helperText={desktopFieldErrors.startDayOfYear ? "Введите целое число 1..365." : undefined}
                       fullWidth
                     />
                   </Box>
@@ -295,6 +377,8 @@ export function ObjectCard({
                       label="День года: по"
                       value={entry.data.options.endDayOfYear ?? ""}
                       onChange={(e) => setOptions({ endDayOfYear: e.target.value }, "desktop")}
+                      error={desktopFieldErrors.endDayOfYear}
+                      helperText={desktopFieldErrors.endDayOfYear ? "Введите целое число 1..365." : undefined}
                       fullWidth
                     />
                   </Box>
@@ -309,6 +393,8 @@ export function ObjectCard({
                       label="День недели (1-7)"
                       value={entry.data.options.xDayOfWeek ?? ""}
                       onChange={(e) => setOptions({ xDayOfWeek: e.target.value }, "desktop")}
+                      error={desktopFieldErrors.xDayOfWeek}
+                      helperText={desktopFieldErrors.xDayOfWeek ? "Введите целое число 1..7." : undefined}
                       fullWidth
                     />
                   </Box>
@@ -317,6 +403,8 @@ export function ObjectCard({
                       label="Номер недели"
                       value={entry.data.options.yWeek ?? ""}
                       onChange={(e) => setOptions({ yWeek: e.target.value }, "desktop")}
+                      error={desktopFieldErrors.yWeek}
+                      helperText={desktopFieldErrors.yWeek ? "Введите -5..-1 или 1..5." : undefined}
                       fullWidth
                     />
                   </Box>
@@ -325,6 +413,8 @@ export function ObjectCard({
                       label="Месяц (1-12)"
                       value={entry.data.options.zMonth ?? ""}
                       onChange={(e) => setOptions({ zMonth: e.target.value }, "desktop")}
+                      error={desktopFieldErrors.zMonth}
+                      helperText={desktopFieldErrors.zMonth ? "Введите целое число 1..12." : undefined}
                       fullWidth
                     />
                   </Box>
@@ -335,7 +425,11 @@ export function ObjectCard({
 
           <PlatformBlock
             title="Desktop"
+            baseValue={entry.data.value}
+            assetsBaseUrl={assetsBaseUrl}
+            fileAvailability={fileAvailability}
             options={entry.data.options}
+            fieldErrors={desktopFieldErrors}
             enabled={timeDesktop}
             onToggle={(next) => {
               const options = { ...entry.data.options };
@@ -351,7 +445,11 @@ export function ObjectCard({
 
           <PlatformBlock
             title="Mobile"
+            baseValue={entry.data["value-portrait"]}
+            assetsBaseUrl={assetsBaseUrl}
+            fileAvailability={fileAvailability}
             options={entry.data["options-portrait"]}
+            fieldErrors={mobileFieldErrors}
             enabled={timeMobile}
             onToggle={(next) => {
               const options = { ...entry.data["options-portrait"] };
@@ -367,16 +465,20 @@ export function ObjectCard({
 
           <Accordion disableGutters>
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle2">Ожидаемые имена файлов</Typography>
+              <Typography variant="subtitle2">Изображения</Typography>
             </AccordionSummary>
             <AccordionDetails>
               <Typography variant="caption" color="text.secondary">
                 Desktop
               </Typography>
               <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                {buildFileNames(entry.data.value, entry.data.options).map((name) => (
+                {desktopFiles.map((name) => (
                   <li key={name}>
-                    <Typography variant="body2">{name}</Typography>
+                    <FileNameItem
+                      fileName={name}
+                      assetsBaseUrl={assetsBaseUrl}
+                      exists={fileAvailability[name] === true}
+                    />
                   </li>
                 ))}
               </Box>
@@ -384,9 +486,13 @@ export function ObjectCard({
                 Mobile
               </Typography>
               <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                {buildFileNames(entry.data["value-portrait"], entry.data["options-portrait"]).map((name) => (
+                {mobileFiles.map((name) => (
                   <li key={name}>
-                    <Typography variant="body2">{name}</Typography>
+                    <FileNameItem
+                      fileName={name}
+                      assetsBaseUrl={assetsBaseUrl}
+                      exists={fileAvailability[name] === true}
+                    />
                   </li>
                 ))}
               </Box>
@@ -407,15 +513,83 @@ export function ObjectCard({
   );
 }
 
+function FileNameItem({
+  fileName,
+  assetsBaseUrl,
+  exists,
+}: {
+  fileName: string;
+  assetsBaseUrl: string;
+  exists: boolean;
+}) {
+  const fullUrl = assetsBaseUrl ? buildFileUrl(assetsBaseUrl, fileName) : "";
+  if (exists && fullUrl) {
+    return (
+      <Typography
+        variant="body2"
+        component="a"
+        href={fullUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        sx={{ color: "primary.main", textDecoration: "underline" }}
+      >
+        {fileName}
+      </Typography>
+    );
+  }
+  return <Typography variant="body2">{fileName}</Typography>;
+}
+
+function buildFileUrl(base: string, fileName: string): string {
+  return `${base.replace(/\/+$/, "")}/${fileName.replace(/^\/+/, "")}`;
+}
+
+async function checkRemoteImageExists(url: string): Promise<boolean> {
+  if (!url || !/^https?:\/\//i.test(url)) return false;
+  const cached = fileExistsCache.get(url);
+  if (typeof cached === "boolean") return cached;
+
+  const exists = await new Promise<boolean>((resolve) => {
+    const img = new Image();
+    let done = false;
+    const finish = (value: boolean) => {
+      if (done) return;
+      done = true;
+      resolve(value);
+    };
+    const timer = window.setTimeout(() => finish(false), 8000);
+    img.onload = () => {
+      window.clearTimeout(timer);
+      finish(true);
+    };
+    img.onerror = () => {
+      window.clearTimeout(timer);
+      finish(false);
+    };
+    img.src = url;
+  });
+
+  fileExistsCache.set(url, exists);
+  return exists;
+}
+
 function PlatformBlock({
   title,
+  baseValue,
+  assetsBaseUrl,
+  fileAvailability,
   options,
+  fieldErrors,
   enabled,
   onToggle,
   onChange,
 }: {
   title: string;
+  baseValue: string;
+  assetsBaseUrl: string;
+  fileAvailability: Record<string, boolean>;
   options: Options;
+  fieldErrors: OptionsFieldErrors;
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
   onChange: (patch: Partial<Options>) => void;
@@ -424,6 +598,9 @@ function PlatformBlock({
     options.gradient && typeof options.gradient === "object" && !Array.isArray(options.gradient)
       ? options.gradient
       : {};
+  const missingGradientParts = getMissingGradientParts(options);
+  const missingGradientSet = new Set(missingGradientParts);
+  const plainGradientError = !enabled && missingGradientSet.has("общий");
 
   return (
     <Box sx={{ p: 1.5, border: (theme) => `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
@@ -440,16 +617,29 @@ function PlatformBlock({
             label="Соотношение сторон"
             value={options.aspectRatio ?? ""}
             onChange={(e) => onChange({ aspectRatio: e.target.value })}
+            error={fieldErrors.aspectRatio}
+            helperText={fieldErrors.aspectRatio ? "Обязательное поле." : undefined}
             fullWidth
           />
         </Box>
         {!enabled ? (
           <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 6" } }}>
-            <TextField
+            <GradientGeneratorField
               label="Градиент"
               value={typeof options.gradient === "string" ? options.gradient : ""}
-              onChange={(e) => onChange({ gradient: e.target.value })}
-              fullWidth
+              onChange={(nextGradient) => onChange({ gradient: nextGradient })}
+              error={plainGradientError || fieldErrors.gradientGeneralInvalid}
+              helperText={
+                plainGradientError
+                  ? "Обязательное поле."
+                  : fieldErrors.gradientGeneralInvalid
+                  ? "Невалидный формат gradient."
+                  : undefined
+              }
+              cdnImageUrl={assetsBaseUrl ? buildFileUrl(assetsBaseUrl, `${baseValue}.jpeg`) : ""}
+              canLoadFromCdn={fileAvailability[`${baseValue}.jpeg`] === true}
+              expectedRatio={title === "Desktop" ? DESKTOP_RATIO : MOBILE_RATIO}
+              targetLabel={title}
             />
           </Box>
         ) : null}
@@ -458,7 +648,7 @@ function PlatformBlock({
         <Box sx={{ ...FIELD_GRID, mt: 1 }}>
           {TIME_KEYS.map((key) => (
             <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 3" } }} key={key}>
-              <FormControl fullWidth>
+              <FormControl fullWidth error={fieldErrors.invalidTimeKeys.has(key)}>
                 <InputLabel>{TIME_LABEL[key]}</InputLabel>
                 <Select
                   label={TIME_LABEL[key]}
@@ -475,18 +665,29 @@ function PlatformBlock({
           ))}
           {Array.from(new Set(TIME_KEYS.map((k) => options[k]).filter(Boolean) as TimeKey[])).map((suffix) => (
             <Box sx={{ gridColumn: { xs: "1 / -1", md: "span 6" } }} key={suffix}>
-              <TextField
+              <GradientGeneratorField
                 label={`Градиент ${suffix}`}
                 value={gradientObj[suffix] ?? ""}
-                onChange={(e) =>
+                onChange={(nextGradient) =>
                   onChange({
                     gradient: {
                       ...gradientObj,
-                      [suffix]: e.target.value,
+                      [suffix]: nextGradient,
                     },
                   })
                 }
-                fullWidth
+                error={missingGradientSet.has(suffix) || fieldErrors.gradientInvalidSuffixes.has(suffix)}
+                helperText={
+                  missingGradientSet.has(suffix)
+                    ? "Обязательное поле."
+                    : fieldErrors.gradientInvalidSuffixes.has(suffix)
+                    ? "Невалидный формат gradient."
+                    : undefined
+                }
+                cdnImageUrl={assetsBaseUrl ? buildFileUrl(assetsBaseUrl, `${baseValue}-${suffix}.jpeg`) : ""}
+                canLoadFromCdn={fileAvailability[`${baseValue}-${suffix}.jpeg`] === true}
+                expectedRatio={title === "Desktop" ? DESKTOP_RATIO : MOBILE_RATIO}
+                targetLabel={`${title} ${TIME_LABEL_LOWER[suffix] ?? suffix}`}
               />
             </Box>
           ))}
@@ -503,6 +704,8 @@ function RangeDateBlock({
   onManualEnd,
   onApply,
   onPreview,
+  startError,
+  endError,
 }: {
   startUi: string;
   endUi: string;
@@ -510,6 +713,8 @@ function RangeDateBlock({
   onManualEnd: (value: string) => void;
   onApply: (start: string, end: string) => void;
   onPreview: (start: string, end: string) => void;
+  startError?: boolean;
+  endError?: boolean;
 }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [leftMonth, setLeftMonth] = useState(1);
@@ -619,6 +824,8 @@ function RangeDateBlock({
           label="Дата начала"
           value={startUi}
           onChange={(e) => onManualStart(e.target.value)}
+          error={Boolean(startError)}
+          helperText={startError ? "Ожидается корректная дата." : undefined}
           fullWidth
           placeholder="ДД.ММ"
         />
@@ -628,6 +835,8 @@ function RangeDateBlock({
           label="Дата конца"
           value={endUi}
           onChange={(e) => onManualEnd(e.target.value)}
+          error={Boolean(endError)}
+          helperText={endError ? "Ожидается корректная дата." : undefined}
           fullWidth
           placeholder="ДД.ММ"
         />
@@ -703,6 +912,84 @@ function RangeDateBlock({
       </Popover>
     </>
   );
+}
+
+function getOptionsFieldErrors(options: Options): OptionsFieldErrors {
+  const type = detectRuleType(options);
+  const start = `${options.start ?? ""}`.trim();
+  const end = `${options.end ?? ""}`.trim();
+  const startDay = `${options.startDayOfYear ?? ""}`.trim();
+  const endDay = `${options.endDayOfYear ?? ""}`.trim();
+  const xDayOfWeek = `${options.xDayOfWeek ?? ""}`.trim();
+  const yWeek = `${options.yWeek ?? ""}`.trim();
+  const zMonth = `${options.zMonth ?? ""}`.trim();
+
+  const startDayNum = Number(startDay);
+  const endDayNum = Number(endDay);
+  const xDayNum = Number(xDayOfWeek);
+  const yWeekNum = Number(yWeek);
+  const zMonthNum = Number(zMonth);
+
+  const missingGradientSet = new Set(getMissingGradientParts(options));
+  const timeEnabled = isTimeOfDayEnabled(options);
+  const gradientObj =
+    options.gradient && typeof options.gradient === "object" && !Array.isArray(options.gradient)
+      ? options.gradient
+      : {};
+  const invalidTimeKeys = new Set<TimeKey>();
+  TIME_KEYS.forEach((key) => {
+    const mapped = options[key];
+    if (!mapped) return;
+    if (!TIME_KEYS.includes(mapped)) {
+      invalidTimeKeys.add(key);
+    }
+  });
+
+  const gradientInvalidSuffixes = new Set<TimeKey>();
+  if (timeEnabled) {
+    const usedSuffixes = Array.from(new Set(TIME_KEYS.map((key) => options[key]).filter(Boolean) as TimeKey[]));
+    usedSuffixes.forEach((suffix) => {
+      const gradient = `${gradientObj[suffix] ?? ""}`.trim();
+      if (gradient && !isValidGradientCssLoose(gradient)) {
+        gradientInvalidSuffixes.add(suffix);
+      }
+    });
+  }
+
+  const gradientGeneral = typeof options.gradient === "string" ? options.gradient.trim() : "";
+
+  return {
+    aspectRatio: !`${options.aspectRatio ?? ""}`.trim(),
+    start: type === "range" && (!start || !parseDayMonth(start)),
+    end: type === "range" && (!end || !parseDayMonth(end)),
+    startDayOfYear:
+      type === "day_of_year" &&
+      (!startDay || !Number.isInteger(startDayNum) || startDayNum < 1 || startDayNum > 365),
+    endDayOfYear: type === "day_of_year" && (!endDay || !Number.isInteger(endDayNum) || endDayNum < 1 || endDayNum > 365),
+    xDayOfWeek: type === "weekday_in_month" && (!xDayOfWeek || !Number.isInteger(xDayNum) || xDayNum < 1 || xDayNum > 7),
+    yWeek:
+      type === "weekday_in_month" &&
+      (!yWeek || !Number.isInteger(yWeekNum) || yWeekNum < -5 || yWeekNum > 5 || yWeekNum === 0),
+    zMonth: type === "weekday_in_month" && (!zMonth || !Number.isInteger(zMonthNum) || zMonthNum < 1 || zMonthNum > 12),
+    gradientGeneralInvalid: !timeEnabled && !missingGradientSet.has("общий") && !!gradientGeneral && !isValidGradientCssLoose(gradientGeneral),
+    gradientInvalidSuffixes,
+    invalidTimeKeys,
+  };
+}
+
+function isValidGradientCssLoose(value: string): boolean {
+  const raw = value.trim();
+  const match = raw.match(/^linear-gradient\(([\s\S]+?)\)\s*(?:,\s*(rgb\([^)]+\)|#[0-9a-fA-F]{6}))?\s*$/i);
+  if (!match) return false;
+  const gradientPart = `linear-gradient(${match[1]})`;
+  const angle = gradientPart.match(/linear-gradient\(([-\d.]+)deg/i);
+  if (!angle || !Number.isFinite(Number(angle[1]))) return false;
+  const stops = [...gradientPart.matchAll(/(rgb\([^\)]+\)|#[0-9a-fA-F]{6})\s+([\d.]+)%/g)];
+  if (stops.length < 2) return false;
+  return stops.every((s) => {
+    const pos = Number(s[2]);
+    return Number.isFinite(pos) && pos >= 0;
+  });
 }
 
 function pad2(v: number) {
