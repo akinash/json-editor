@@ -36,6 +36,7 @@ import {
   enableTimeOfDay,
   getRuleSummary,
   getMissingGradientParts,
+  isValidGradientCss,
   isTimeOfDayEnabled,
   normalizeCode,
   normalizeRangeDateForJson,
@@ -950,7 +951,7 @@ function getOptionsFieldErrors(options: Options): OptionsFieldErrors {
     const usedSuffixes = Array.from(new Set(TIME_KEYS.map((key) => options[key]).filter(Boolean) as TimeKey[]));
     usedSuffixes.forEach((suffix) => {
       const gradient = `${gradientObj[suffix] ?? ""}`.trim();
-      if (gradient && !isValidGradientCssLoose(gradient)) {
+      if (gradient && !isValidGradientCss(gradient)) {
         gradientInvalidSuffixes.add(suffix);
       }
     });
@@ -971,25 +972,10 @@ function getOptionsFieldErrors(options: Options): OptionsFieldErrors {
       type === "weekday_in_month" &&
       (!yWeek || !Number.isInteger(yWeekNum) || yWeekNum < -5 || yWeekNum > 5 || yWeekNum === 0),
     zMonth: type === "weekday_in_month" && (!zMonth || !Number.isInteger(zMonthNum) || zMonthNum < 1 || zMonthNum > 12),
-    gradientGeneralInvalid: !timeEnabled && !missingGradientSet.has("общий") && !!gradientGeneral && !isValidGradientCssLoose(gradientGeneral),
+    gradientGeneralInvalid: !timeEnabled && !missingGradientSet.has("общий") && !!gradientGeneral && !isValidGradientCss(gradientGeneral),
     gradientInvalidSuffixes,
     invalidTimeKeys,
   };
-}
-
-function isValidGradientCssLoose(value: string): boolean {
-  const raw = value.trim();
-  const match = raw.match(/^linear-gradient\(([\s\S]+?)\)\s*(?:,\s*(rgb\([^)]+\)|#[0-9a-fA-F]{6}))?\s*$/i);
-  if (!match) return false;
-  const gradientPart = `linear-gradient(${match[1]})`;
-  const angle = gradientPart.match(/linear-gradient\(([-\d.]+)deg/i);
-  if (!angle || !Number.isFinite(Number(angle[1]))) return false;
-  const stops = [...gradientPart.matchAll(/(rgb\([^\)]+\)|#[0-9a-fA-F]{6})\s+([\d.]+)%/g)];
-  if (stops.length < 2) return false;
-  return stops.every((s) => {
-    const pos = Number(s[2]);
-    return Number.isFinite(pos) && pos >= 0;
-  });
 }
 
 function pad2(v: number) {

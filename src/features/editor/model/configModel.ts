@@ -67,18 +67,6 @@ export function isCodeValid(code: string): boolean {
   return codePattern.test(code);
 }
 
-export function setEntryCode(entry: ConfigEntry, nextCode: string): ConfigEntry {
-  const clean = normalizeCode(nextCode);
-  return {
-    key: clean,
-    data: {
-      ...entry.data,
-      value: clean,
-      "value-portrait": `${clean}-portrait`,
-    },
-  };
-}
-
 export function detectRuleType(options: Options): DateRuleType {
   if ("start" in options || "end" in options) return "range";
   if ("startDayOfYear" in options || "endDayOfYear" in options) return "day_of_year";
@@ -405,7 +393,7 @@ function collectOptionsContentErrors(options: Options): string[] {
   return errors;
 }
 
-function isValidGradientCss(value: string): boolean {
+export function isValidGradientCss(value: string): boolean {
   const raw = value.trim();
   const match = raw.match(/^linear-gradient\(([\s\S]+?)\)\s*(?:,\s*(rgb\([^)]+\)|#[0-9a-fA-F]{6}))?\s*$/i);
   if (!match) return false;
