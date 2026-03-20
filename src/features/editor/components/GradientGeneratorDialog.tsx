@@ -385,8 +385,27 @@ function GradientGeneratorDialog({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          maxHeight: "calc(100dvh - 16px)",
+          display: "flex",
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          pb: 1,
+          "@media (max-height: 860px)": {
+            pt: 1.5,
+            pb: 0.75,
+          },
+        }}
+      >
         <Stack spacing={0.25}>
           <Typography variant="h6">Генерация градиента из изображения</Typography>
           {targetLabel ? (
@@ -396,11 +415,28 @@ function GradientGeneratorDialog({
           ) : null}
         </Stack>
       </DialogTitle>
-      <DialogContent>
-        <Stack spacing={1.5}>
+      <DialogContent
+        sx={{
+          overflowY: "auto",
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          "@media (max-height: 860px)": {
+            py: 1.25,
+          },
+        }}
+      >
+        <Stack spacing={1.5} sx={{ minHeight: 0 }}>
           {error ? <Alert severity="error">{error}</Alert> : null}
 
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1.25 }}>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              gap: 1.25,
+              alignItems: "start",
+            }}
+          >
             <Box>
               <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
                 Изображение
@@ -488,17 +524,6 @@ function GradientGeneratorDialog({
                   </Stack>
                 )}
               </Box>
-              {imageUrl ? (
-                <Button
-                  variant="outlined"
-                  size="small"
-                  sx={{ mt: 1, minHeight: 30, px: 1.5 }}
-                  onClick={() => void regenerateFromImage()}
-                  disabled={working}
-                >
-                  Сгенерировать градиент
-                </Button>
-              ) : null}
               <input
                 ref={fileInputRef}
                 hidden
@@ -633,25 +658,49 @@ function GradientGeneratorDialog({
           </Box>
         </Stack>
       </DialogContent>
-      <DialogActions>
-        <Button
-          onClick={() => {
-            resetGeneratorSession();
-            onClose();
-          }}
-        >
-          Отмена
-        </Button>
-        <Button
-          variant="contained"
-          onClick={() => {
-            onApply(outputGradient);
-            resetGeneratorSession();
-          }}
-          disabled={!outputGradient.trim()}
-        >
-          Применить
-        </Button>
+      <DialogActions
+        sx={{
+          pt: 1,
+          justifyContent: "space-between",
+          gap: 1,
+          "@media (max-height: 860px)": {
+            px: 2,
+            py: 1.25,
+          },
+        }}
+      >
+        <Box sx={{ minWidth: 180 }}>
+          {imageUrl ? (
+            <Button
+              variant="outlined"
+              onClick={() => void regenerateFromImage()}
+              disabled={working}
+            >
+              Сгенерировать градиент
+            </Button>
+          ) : null}
+        </Box>
+
+        <Stack direction="row" spacing={1} justifyContent="flex-end">
+          <Button
+            onClick={() => {
+              resetGeneratorSession();
+              onClose();
+            }}
+          >
+            Отмена
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              onApply(outputGradient);
+              resetGeneratorSession();
+            }}
+            disabled={!outputGradient.trim()}
+          >
+            Применить
+          </Button>
+        </Stack>
       </DialogActions>
 
       <Popover

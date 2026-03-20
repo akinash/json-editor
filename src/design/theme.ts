@@ -62,7 +62,17 @@ export function makeTheme(mode: "light" | "dark"): Theme {
           body: {
             margin: 0,
             color: t.textPrimary,
-            background: `radial-gradient(circle at top left, ${t.bgCanvasTop} 0, ${t.bgCanvas} 46%, ${t.bgCanvas} 100%)`,
+            background:
+              mode === "dark"
+                ? `radial-gradient(circle at 0% 0%, ${alpha("#3b82f6", 0.22)} 0, transparent 16%),
+                   radial-gradient(circle at 10% 8%, ${alpha("#0f172a", 0.92)} 0, ${t.bgCanvas} 34%, ${t.bgCanvas} 100%)`
+                : `radial-gradient(circle at 0% 0%, ${alpha(t.primary, 0.16)} 0, transparent 20%),
+                   radial-gradient(circle at 12% 8%, ${t.bgCanvasTop} 0, ${t.bgCanvas} 42%, ${t.bgCanvas} 100%)`,
+          },
+          "@media (prefers-reduced-motion: reduce)": {
+            "*, *::before, *::after": {
+              animation: "none !important",
+            },
           },
         },
       },

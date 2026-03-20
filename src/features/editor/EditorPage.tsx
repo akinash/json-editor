@@ -5,11 +5,11 @@ import {
   Button,
   Container,
   Divider,
-  Paper,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
@@ -41,6 +41,94 @@ import {
   validateEntries,
 } from "./model/configModel";
 import { DEFAULT_URL } from "./model/constants";
+
+function JsonConfigLogo() {
+  return (
+    <Box
+      aria-hidden
+      sx={{
+        position: "relative",
+        width: { xs: 30, md: 36 },
+        height: { xs: 30, md: 36 },
+      }}
+    >
+      <Typography
+        component="span"
+        sx={{
+          position: "absolute",
+          left: 0,
+          top: "50%",
+          transform: "translateY(-56%)",
+          fontSize: { xs: 26, md: 30 },
+          lineHeight: 1,
+          fontWeight: 700,
+          color: "#fff",
+          opacity: 0.96,
+        }}
+      >
+        {"{"}
+      </Typography>
+      <Typography
+        component="span"
+        sx={{
+          position: "absolute",
+          right: 0,
+          top: "50%",
+          transform: "translateY(-56%)",
+          fontSize: { xs: 26, md: 30 },
+          lineHeight: 1,
+          fontWeight: 700,
+          color: "#fff",
+          opacity: 0.96,
+        }}
+      >
+        {"}"}
+      </Typography>
+
+      <Box
+        sx={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          width: { xs: 12, md: 14 },
+          transform: "translate(-50%, -50%)",
+          display: "grid",
+          gap: "4px",
+        }}
+      >
+        {[0, 1, 2].map((row) => (
+          <Box
+            key={row}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+            }}
+          >
+            <Box
+              sx={{
+                width: 3,
+                height: 3,
+                borderRadius: "50%",
+                backgroundColor: "#fff",
+                opacity: row === 1 ? 1 : 0.75,
+              }}
+            />
+            <Box
+              sx={{
+                flex: 1,
+                height: 2,
+                borderRadius: 999,
+                backgroundColor: "#fff",
+                opacity: row === 1 ? 1 : 0.72,
+              }}
+            />
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+}
 
 export function EditorPage() {
   const [url, setUrl] = React.useState(DEFAULT_URL);
@@ -193,39 +281,165 @@ export function EditorPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
-      <Paper
+      <Box
         sx={{
-          px: 2.5,
-          py: 2,
-          borderRadius: 3,
-          mb: 2,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 2,
+          mb: 3,
+          py: { xs: 0.75, md: 1.25 },
         }}
       >
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Box
-            component="img"
-            src="./apple-touch-icon.png"
-            alt="Логотип"
-            sx={{ width: 44, height: 44, borderRadius: 1.5, border: (t) => `1px solid ${t.palette.divider}` }}
-          />
-          <Box>
-            <Typography variant="h1">Редактор JSON-конфига</Typography>
-            <Typography color="text.secondary">Редактирование конфига заставок веб-версии</Typography>
-          </Box>
-        </Stack>
-
-        <Button
-          variant="outlined"
-          startIcon={resolvedMode === "dark" ? <DarkModeIcon /> : <LightModeIcon />}
-          onClick={() => setMode(resolvedMode === "dark" ? "light" : "dark")}
+        <Box
+          sx={{
+            px: 0,
+            py: { xs: 1, md: 1.4 },
+            display: "flex",
+            alignItems: { xs: "flex-start", md: "center" },
+            justifyContent: "space-between",
+            gap: 2,
+          }}
         >
-          {resolvedMode === "dark" ? "Тёмная" : "Светлая"}
-        </Button>
-      </Paper>
+          <Stack
+            direction="row"
+            spacing={{ xs: 1.5, md: 2 }}
+            alignItems="center"
+            sx={{ minWidth: 0 }}
+          >
+            <Box
+              sx={{
+                flexShrink: 0,
+                width: { xs: 50, md: 60 },
+                height: { xs: 50, md: 60 },
+                borderRadius: { xs: 2, md: 2.5 },
+                display: "grid",
+                placeItems: "center",
+                background: (t) =>
+                  `linear-gradient(145deg, ${t.palette.primary.main}, ${t.palette.mode === "dark" ? "#4d92ef" : "#2d6ee8"})`,
+                border: (t) => `1px solid ${alpha("#ffffff", t.palette.mode === "dark" ? 0.14 : 0.44)}`,
+                boxShadow: (t) =>
+                  `inset 0 1px 0 ${alpha("#ffffff", 0.34)}, 0 10px 22px ${alpha(t.palette.primary.main, t.palette.mode === "dark" ? 0.22 : 0.18)}`,
+              }}
+            >
+              <JsonConfigLogo />
+            </Box>
+
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                component="h1"
+                sx={{
+                  fontSize: { xs: "1.55rem", md: "2.45rem" },
+                  lineHeight: 1,
+                  fontWeight: 700,
+                  letterSpacing: "-0.03em",
+                  color: "text.primary",
+                  textWrap: "balance",
+                }}
+              >
+                Редактор JSON-конфига
+              </Typography>
+              <Typography
+                sx={{
+                  mt: 0.45,
+                  fontSize: { xs: "0.95rem", md: "1.05rem" },
+                  lineHeight: 1.2,
+                  fontWeight: 500,
+                  letterSpacing: "-0.01em",
+                  color: "text.secondary",
+                }}
+              >
+                заставок веб-версии
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Box
+            component="button"
+            type="button"
+            aria-label={
+              resolvedMode === "dark"
+                ? "Переключить на светлую тему"
+                : "Переключить на тёмную тему"
+            }
+            onClick={() => setMode(resolvedMode === "dark" ? "light" : "dark")}
+            sx={{
+              alignSelf: { xs: "flex-end", md: "center" },
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: 1.1,
+              width: { xs: 136, md: 154 },
+              height: { xs: 44, md: 50 },
+              px: { xs: 0.85, md: 1 },
+              border: 0,
+              borderRadius: 999,
+              background: "transparent",
+              cursor: "pointer",
+              font: "inherit",
+              color: "inherit",
+              appearance: "none",
+              WebkitTapHighlightColor: "transparent",
+              "&:focus-visible": {
+                outline: (t) => `2px solid ${alpha(t.palette.primary.main, 0.7)}`,
+                outlineOffset: 4,
+              },
+              "& .toggle-side-icon": {
+                color: (t) =>
+                  alpha(
+                    t.palette.text.secondary,
+                    resolvedMode === "dark" ? 0.72 : 0.64,
+                  ),
+                transition: "color 220ms ease, opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)",
+              },
+              "& .toggle-side-icon.sun": {
+                opacity: resolvedMode === "dark" ? 0.4 : 0.92,
+                transform: resolvedMode === "dark" ? "scale(0.88) rotate(-18deg)" : "scale(1) rotate(0deg)",
+              },
+              "& .toggle-side-icon.moon": {
+                opacity: resolvedMode === "dark" ? 0.92 : 0.45,
+                transform: resolvedMode === "dark" ? "scale(1) rotate(0deg)" : "scale(0.88) rotate(14deg)",
+              },
+              "& .toggle-track": {
+                position: "relative",
+                flex: 1,
+                height: { xs: 30, md: 34 },
+                borderRadius: 999,
+                background:
+                  resolvedMode === "dark"
+                    ? `linear-gradient(180deg, ${alpha("#141c31", 0.92)}, ${alpha("#0b1220", 0.96)})`
+                    : `linear-gradient(180deg, ${alpha("#d6ddea", 0.95)}, ${alpha("#c6d0e0", 0.98)})`,
+                boxShadow:
+                  resolvedMode === "dark"
+                    ? `inset 0 3px 8px ${alpha("#020617", 0.55)}, inset 0 -1px 0 ${alpha("#475569", 0.2)}`
+                    : `inset 0 3px 7px ${alpha("#94a3b8", 0.28)}, inset 0 -1px 0 ${alpha("#ffffff", 0.85)}`,
+                transition: "background 240ms ease, box-shadow 240ms ease",
+              },
+              "& .toggle-thumb": {
+                position: "absolute",
+                top: "50%",
+                left: resolvedMode === "dark" ? "calc(100% - 27px)" : "3px",
+                width: { xs: 24, md: 28 },
+                height: { xs: 24, md: 28 },
+                borderRadius: "50%",
+                transform: resolvedMode === "dark"
+                  ? "translateY(-50%) scale(1.02)"
+                  : "translateY(-50%) scale(1)",
+                background: resolvedMode === "dark"
+                  ? "linear-gradient(145deg, #9da6bb, #7d879d)"
+                  : "linear-gradient(145deg, #ffffff, #e9eef8)",
+                boxShadow: resolvedMode === "dark"
+                  ? `0 6px 14px ${alpha("#020617", 0.45)}, inset 0 1px 0 ${alpha("#ffffff", 0.14)}`
+                  : `0 8px 18px ${alpha("#94a3b8", 0.38)}, inset 0 1px 0 ${alpha("#ffffff", 0.9)}`,
+                transition:
+                  "left 300ms cubic-bezier(0.22, 1, 0.36, 1), transform 300ms cubic-bezier(0.22, 1, 0.36, 1), background 220ms ease, box-shadow 220ms ease",
+              },
+            }}
+          >
+            <LightModeIcon className="toggle-side-icon sun" sx={{ fontSize: { xs: 22, md: 24 } }} />
+            <Box className="toggle-track">
+              <Box className="toggle-thumb" />
+            </Box>
+            <DarkModeIcon className="toggle-side-icon moon" sx={{ fontSize: { xs: 20, md: 22 } }} />
+          </Box>
+        </Box>
+      </Box>
 
       <Stack spacing={2}>
         <AppCard>
