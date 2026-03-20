@@ -69,12 +69,24 @@ npm run preview
 npm run typecheck
 ```
 
-### Tests
+### Testing
 
-Запуск тестов:
+Unit- и integration-тесты:
 
 ```bash
 npm run test
+```
+
+End-to-end тесты:
+
+```bash
+npm run e2e
+```
+
+Если браузеры Playwright ещё не установлены, сначала выполните:
+
+```bash
+npx playwright install chromium
 ```
 
 ## Основные сценарии работы
@@ -128,6 +140,20 @@ src/
 - поддерживаются светлая и тёмная тема;
 - для drag-and-drop используется `dnd-kit`;
 - для редактирования JSON используется Ace Editor.
+
+## Покрытие тестами
+
+В проекте есть несколько уровней тестов:
+
+- unit-тесты для бизнес-логики модели конфига;
+- integration-тесты для `EditorPage`, `ObjectCard` и `GradientGeneratorDialog`;
+- end-to-end тесты на Playwright для основных пользовательских сценариев.
+
+Текущие e2e-сценарии покрывают:
+
+- основной happy path редактирования и скачивания JSON;
+- независимость `Desktop` / `Mobile` настроек;
+- генерацию и применение градиента из изображения.
 
 ## Полезные замечания
 

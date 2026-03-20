@@ -9,7 +9,6 @@ import {
   Chip,
   FormControl,
   FormControlLabel,
-  IconButton,
   InputLabel,
   MenuItem,
   Popover,
@@ -235,19 +234,30 @@ export function ObjectCard({
   };
 
   return (
-    <Accordion ref={setNodeRef} expanded={expanded} onChange={(_, open) => onExpanded(open)} sx={style}>
+      <Accordion ref={setNodeRef} expanded={expanded} onChange={(_, open) => onExpanded(open)} sx={style}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ width: "100%" }}>
-          <IconButton
-            size="small"
+          <Box
+            component="span"
             title={expanded ? "Сначала сверните объект" : "Перетащить"}
-            disabled={expanded}
             {...(!expanded ? listeners : {})}
             {...attributes}
             onClick={(e) => e.stopPropagation()}
+            sx={{
+              width: 32,
+              height: 32,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 1.5,
+              color: "text.secondary",
+              opacity: expanded ? 0.45 : 1,
+              cursor: expanded ? "not-allowed" : "grab",
+              flexShrink: 0,
+            }}
           >
             <DragIndicatorIcon fontSize="small" />
-          </IconButton>
+          </Box>
           <Box sx={{ minWidth: 0, flex: 1 }}>
             <Typography fontWeight={700} noWrap>
               {entry.key || "(без кода)"}
